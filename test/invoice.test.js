@@ -31,7 +31,7 @@ const cases = [
     pricingExpected: { subtotal: 1090, discount: 0, tax: 86, cgst: 43, sgst: 43, total: 1176 }
   },
   {
-    name: 'CURRENT BEHAVIOUR: order #1002 SAVE10 applies to subtotal plus invoice tax',
+    name: 'CURRENT BEHAVIOUR: order #1002 SAVE10 discount precedes 5% GST',
     order: {
       id: 1002,
       coupon: 'SAVE10',
@@ -39,17 +39,17 @@ const cases = [
     },
     invoiceExpected: {
       subtotal: 640,
-      discount: 67.2,
-      tax: 32,
-      cgst: 16,
-      sgst: 16,
+      discount: 64,
+      tax: 28.8,
+      cgst: 14.4,
+      sgst: 14.4,
       total: 604.8,
-      rows: [{ name: 'Rice', sku: 'GRN-001', hsn: '1006', qty: 1, price: 640, gstPercent: 5, line: 640, lineTax: 32 }]
+      rows: [{ name: 'Rice', sku: 'GRN-001', hsn: '1006', qty: 1, price: 640, gstPercent: 5, line: 640, lineTax: 28.8 }]
     },
     pricingExpected: { subtotal: 640, discount: 64, tax: 28.8, cgst: 14.4, sgst: 14.4, total: 604.8 }
   },
   {
-    name: 'CURRENT BEHAVIOUR: order #1004 SAVE10 invoice ignores the ₹150 coupon cap',
+    name: 'CURRENT BEHAVIOUR: order #1004 SAVE10 discount uses the ₹150 cap before 5% GST',
     order: {
       id: 1004,
       coupon: 'SAVE10',
@@ -57,12 +57,12 @@ const cases = [
     },
     invoiceExpected: {
       subtotal: 2240,
-      discount: 235.2,
-      tax: 112,
-      cgst: 56,
-      sgst: 56,
-      total: 2116.8,
-      rows: [{ name: 'Groundnut Oil', sku: 'OIL-002', hsn: '1508', qty: 2, price: 1120, gstPercent: 5, line: 2240, lineTax: 112 }]
+      discount: 150,
+      tax: 104.5,
+      cgst: 52.25,
+      sgst: 52.25,
+      total: 2194.5,
+      rows: [{ name: 'Groundnut Oil', sku: 'OIL-002', hsn: '1508', qty: 2, price: 1120, gstPercent: 5, line: 2240, lineTax: 104.5 }]
     },
     pricingExpected: { subtotal: 2240, discount: 150, tax: 104.5, cgst: 52.25, sgst: 52.25, total: 2194.5 }
   },
@@ -107,3 +107,38 @@ for (const scenario of cases) {
     );
   });
 }
+
+test('Invoice matches checkout GST slabs and capped pre-tax coupon discount', () => {
+  const order = {
+    id: 1004,
+    coupon: 'SAVE10',
+    items: [
+      { name: 'Groundnut Oil', sku: 'OIL-002', price: 1120, qty: 2, hsn: '1508', gstRate: 5 }
+    ]
+  };
+  const invoiceFigures = invoice.computeInvoiceFigures(order);
+  const checkoutFigures = pricing.computeTotals(order.items, order.coupon);
+
+  assert.deepEqual(
+    {
+      subtotal: invoiceFigures.subtotal,
+      discount: invoiceFigures.discount,
+      tax: invoiceFigures.tax,
+      cgst: invoiceFigures.cgst,
+      sgst: invoiceFigures.sgst,
+      total: invoiceFigures.total,
+      gstPercent: invoiceFigures.rows[0].gstPercent,
+      lineTax: invoiceFigures.rows[0].lineTax
+    },
+    {
+      subtotal: checkoutFigures.subtotal,
+      discount: checkoutFigures.discount,
+      tax: checkoutFigures.tax,
+      cgst: checkoutFigures.cgst,
+      sgst: checkoutFigures.sgst,
+      total: checkoutFigures.total,
+      gstPercent: checkoutFigures.lines[0].gstPercent,
+      lineTax: checkoutFigures.lines[0].tax
+    }
+  );
+});
